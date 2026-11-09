@@ -1608,16 +1608,35 @@ tbody tr:hover {
 }
 .evidence-alert {
   margin-top: 14px;
-  padding: 13px 16px;
+  padding: 14px 18px;
   background: #fef2f2;
   border: 1px solid #fecaca;
   border-radius: 8px;
-  font-size: 12px;
-  color: #991b1b;
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.evidence-alert-icon {
+  flex-shrink: 0;
+  color: #dc2626;
+  margin-top: 2px;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+}
+.evidence-alert-icon .ico svg {
+  width: 18px;
+  height: 18px;
+  stroke: #dc2626;
+}
+.evidence-alert-text {
+  font-size: 13px;
   line-height: 1.6;
+  color: #991b1b;
+  flex: 1;
+}
+.evidence-alert-text strong {
+  font-weight: 700;
+  color: #7f1d1d;
 }
 .evidence-unsupported-note {
   padding: 14px;
