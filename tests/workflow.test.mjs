@@ -5,7 +5,7 @@ import {webcrypto} from 'node:crypto';
 import {JSDOM} from 'jsdom';
 const root=new URL('../',import.meta.url);
 const engine=(await readFile(new URL('dist/engine.mjs',root),'utf8')).replace(/export /g,'');
-const app=(await readFile(new URL('dist/app.mjs',root),'utf8')).replace(/^import .*\n/,'');
+const app=(await readFile(new URL('dist/app.mjs',root),'utf8')).replace(/^import .*[\r\n]+/,'');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function waitFor(fn){for(let i=0;i<300;i++){if(fn())return;await delay(15);}assert.fail('Interface did not reach the expected state');}
 async function boot(initialRecords){const dom=new JSDOM('<div id="app"></div><div id="toast"></div>',{url:'https://vendorly.test/#overview',runScripts:'outside-only',pretendToBeVisual:true});const w=dom.window;Object.defineProperty(w,'crypto',{value:webcrypto});w.TextEncoder=TextEncoder;w.structuredClone=structuredClone;w.scrollTo=()=>{};w.URL.createObjectURL=()=> 'blob:test';w.URL.revokeObjectURL=()=>{};if(initialRecords)w.localStorage.setItem('vendorly-records-v1',JSON.stringify(initialRecords));w.eval(`(async()=>{${engine}\n${app}\nwindow.ready=true;})().catch(e=>{window.failure=e;})`);await waitFor(()=>w.ready||w.failure);if(w.failure)throw w.failure;return {dom,w,doc:w.document};}
