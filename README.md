@@ -46,7 +46,7 @@ Open http://localhost:8000. The static app has no runtime package dependencies; 
 - Searchable queue, status and country filters, CSV exports, workspace backup/restore, and ten editable scenarios with an isolated test runner.
 - Approved-bank change holds with a reviewer attestation bound to the specific vendor, identity, previous account, and new account. The hold persists on reruns. A note never overrides unrelated blocking findings.
 - An action center prioritizing blocking findings, bank changes, approaching/expired compliance evidence, and aged pending work. Dates use India business time; expiry warnings do not rewrite past decisions.
-- A What-if preview that evaluates corrections without changing documents, decisions, or run history. Hypothetical replacement tax evidence requires an explicit assumption.
+- Automated document cross-referencing comparing extracted fields from tax documents, bank letters, and compliance declarations against form submissions.
 - A ten-case scenario suite that executes the real decision engine with isolated sample history, checks expected findings, and exports the actual results without writing vendors.
 - Responsive layouts, keyboard-accessible controls, labeled forms, focus styles, and reduced motion support.
 
@@ -81,7 +81,7 @@ Existing V1.0 decisions and history are preserved. The UI offers an explicit rec
 3. Load the mixed-script or checksum scenario and run it; point to the exact rule and follow-up (45 sec).
 4. Load the bank-change scenario for an approved vendor. Run it, show the hold, then rerun to prove it persists (60 sec).
 5. Record an independent contact confirmation, rerun, and inspect the reviewer note in history (60 sec).
-6. On a rejected beneficiary, use What-if preview to try a correction. Show that the actual decision stays rejected and no run is added (45 sec).
+6. On a rejected beneficiary, show the Evidence cross-check flagging the conflict, and demonstrate the recheck flow (45 sec).
 7. Explain the local-only and external verification limits (15 sec).
 
 The attached candidate guide is requirements context. This build does not contact a hiring coordinator or submit anything on the user's behalf.
