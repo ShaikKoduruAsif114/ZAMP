@@ -1,0 +1,25 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {evaluate,fixture,parseDocument,followup} from '../dist/engine.mjs';
+const check=(v,id)=>evaluate(v,[],'2026-11-09').checks.find(x=>x.id===id);
+test('Complete submission passes all configured checks',()=>{const r=evaluate(fixture(),[],'2026-11-09');assert.equal(r.status,'approved');assert.equal(r.passed,r.total);});
+test('Missing bank and compliance evidence produces precise follow-up',()=>{const v=fixture('missing');v.id='VND-2000';v.result=evaluate(v,[],'2026-11-09');assert.equal(v.result.status,'pending');assert.equal(v.result.actions.length,2);assert.match(followup(v),/Upload bank ownership evidence/);assert.match(followup(v),/Upload compliance declaration/);});
+test('Unrelated bank beneficiary blocks approval even with complete documents',()=>{const r=evaluate(fixture('mismatch'));assert.equal(r.status,'rejected');assert.equal(r.checks.find(c=>c.id==='beneficiary').state,'reject');});
+test('Cross-border tax and expiry issues are independently visible',()=>{const r=evaluate(fixture('expired'),[],'2026-11-09');assert.equal(r.status,'pending');for(const id of ['tax','doc-tax','doc-compliance'])assert.equal(r.checks.find(c=>c.id===id).state,'pending');});
+test('Shared account across distinct entities is a blocker',()=>{const v=fixture('collision');v.bankFingerprint='matching-fingerprint';const r=evaluate(v,[{id:'VND-1008',legalName:'Lumen Creative LLC',taxId:'81-3276195',bankFingerprint:'matching-fingerprint'}]);assert.equal(r.status,'rejected');assert.match(r.checks.find(c=>c.id==='collision').reason,/Lumen Creative/);});
+test('Rechecking a vendor excludes its own bank and tax records',()=>{const v=fixture();v.id='VND-1009';v.bankFingerprint='f';assert.equal(evaluate(v,[v]).status,'approved');});
+test('Same tax ID on another reference needs duplicate review',()=>{const v=fixture();const r=evaluate(v,[{id:'OLD',legalName:v.legalName,country:'US',taxId:'843276195'}]);assert.equal(r.status,'pending');assert.equal(r.checks.find(c=>c.id==='entity').state,'pending');});
+test('Correcting a beneficiary resolves the blocking finding',()=>{const v=fixture('mismatch');assert.equal(evaluate(v).status,'rejected');v.accountName=v.legalName;assert.equal(evaluate(v).status,'approved');});
+test('Changing suffix and punctuation does not cause a false mismatch',()=>{const v=fixture();v.legalName='The Atlas Studio, Incorporated';assert.equal(check(v,'beneficiary').state,'pass');});
+test('US ABA checksum rejects a plausible but invalid routing number',()=>{const v=fixture();v.routing='021000022';assert.equal(check(v,'routing').state,'pending');});
+test('Unreadable PDF is sent to review, never treated as verified evidence',()=>{const v=fixture();v.documents[0]={type:'tax',name:'tax.pdf',unsupported:true};assert.equal(check(v,'doc-tax').state,'pending');assert.equal(evaluate(v).status,'pending');});
+test('A bank document for a different account cannot pass',()=>{const v=fixture();v.documents[1].accountLast4='9999';assert.equal(check(v,'doc-bank').state,'pending');});
+test('Compliance expiry includes today and rejects yesterday',()=>{const v=fixture();v.documents[2].expiresAt='2026-11-09';assert.equal(check(v,'doc-compliance').state,'pass');v.documents[2].expiresAt='2026-11-08';assert.equal(check(v,'doc-compliance').state,'pending');});
+test('TXT evidence extracts explicit labeled fields',()=>{const d=parseDocument('Legal Name: Atlas Studio LLC\nAccount Last 4: 3058','letter.txt','bank');assert.equal(d.legalName,'Atlas Studio LLC');assert.equal(d.accountLast4,'3058');});
+test('India GSTIN structure and IFSC are evaluated for India',()=>{const v=fixture();v.country='IN';v.taxId='27AAPFU0939F1ZV';v.routing='HDFC0001234';v.documents[0].taxId=v.taxId;assert.equal(evaluate(v).status,'approved');v.taxId='99AAPFU0939F1ZV';assert.equal(check(v,'tax').state,'pending');});
+test('Unsupported country cannot auto-approve',()=>{const v=fixture();v.country='FR';assert.equal(evaluate(v).status,'pending');});
+test('A missing beneficiary remains pending instead of being treated as a mismatch',()=>{const v=fixture();v.accountName='';assert.equal(evaluate(v).status,'pending');});
+test('Impossible calendar dates cannot pass expiry validation',()=>{const v=fixture();v.documents[2].expiresAt='2028-02-31';assert.equal(check(v,'doc-compliance').state,'pending');});
+test('Invalid JSON document shapes become missing evidence fields',()=>{for(const text of ['null','[]','"hello"'])assert.equal(parseDocument(text,'bad.json','tax').legalName,'');});
+
+test('Matching tax-number text in different jurisdictions is not a duplicate company',()=>{const v=fixture();const r=evaluate(v,[{id:'UK-VENDOR',legalName:'Unrelated Limited',country:'GB',taxId:'843276195'}]);assert.equal(r.status,'approved');});

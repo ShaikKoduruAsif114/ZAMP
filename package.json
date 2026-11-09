@@ -1,0 +1,13 @@
+{
+  "name": "vendorly-onboarding",
+  "version": "1.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "start": "node scripts/serve.mjs",
+    "dev": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0"
+  }
+}
