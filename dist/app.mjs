@@ -42,7 +42,7 @@ function overview(all=false){const c=counts(),pending=triageItems().slice(0,3).m
 const field=(key,label,value='',hint='',type='text',full=false)=>`<div class="field ${full?'full':''}"><label for="f-${key}">${label}</label><input id="f-${key}" name="${key}" type="${type}" value="${esc(value)}" ${key==='email'?'autocomplete="email"':''} ${['legalName','email','country','address','taxId','bankName','accountName','routing'].includes(key)?'required':''} ${key==='account'&&!draft?.bankFingerprint?'required':''}>${hint?`<small class="hint">${hint}</small>`:''}</div>`;
 function newForm(){const v=draft||{};return pageHead(v.id?'Update & recheck':'Let’s meet your next vendor',v.id?`${esc(v.id)} · Corrections create a new run and preserve the audit trail.`:'Enter the details. Add the evidence. We’ll connect the dots.',button('Back to vendors','vendors','back',true))+`<div class="form-layout"><form id="submission-form">${v.id?'<div class="banner">'+icon('bank')+'Changing a previously approved payment account creates a review hold, even when the new documents match.</div>':''}<div class="panel form-panel"><div class="section-title"><span class="step-num">01</span><div><h3>Company details</h3><p>The essentials behind a good partnership.</p></div></div><div class="fields">${field('legalName','Legal company name',v.legalName)}${field('contactName','Contact name',v.contactName)}${field('email','Contact email',v.email,'A follow-up draft will be addressed here.','email')}<div class="field"><label for="f-country">Registration country</label><select id="f-country" name="country">${Object.entries(countryNames).map(([k,n])=>`<option value="${k}" ${(v.country||'US')===k?'selected':''}>${flags[k]} ${n}</option>`).join('')}</select></div>${field('taxId','Tax registration ID',v.taxId,'US: EIN · UK: VAT · India: GSTIN (format + checksum)')}<div class="field"><label for="f-category">Service category</label><select id="f-category" name="category">${['Professional services','Design & creative','Technology','Logistics','Goods & supplies','Other'].map(c=>`<option ${v.category===c?'selected':''}>${c}</option>`).join('')}</select></div>${field('address','Registered address',v.address,'Include city, state and postal code.','text',true)}</div></div><div class="panel form-panel"><div class="section-title"><span class="step-num">02</span><div><h3>Payment details</h3><p>Make sure the right business gets paid.</p></div></div><div class="fields">${field('bankName','Bank name',v.bankName)}${field('accountName','Account holder name',v.accountName,'Use the name exactly as it appears at the bank.')}${field('account',v.bankFingerprint?'New account number (optional)':'Account number',v.account,v.bankFingerprint?`Current account: •••• ${v.accountLast4}. Leave blank to keep it.`:'Stored as a SHA-256 fingerprint and last four digits.','text')}${field('routing','Routing code / sort code / IFSC',v.routing,'US: 9 digits · UK: 6 digits · India: 11-character IFSC')}</div></div><div class="panel form-panel"><div class="section-title"><span class="step-num">03</span><div><h3>Supporting evidence</h3><p>Readable details turn submissions into decisions.</p></div></div><div class="banner">${icon('info')}Upload TXT or JSON documents (up to 1 MB each). Other formats are kept as unreadable evidence and require manual review. Download the template to see the expected fields.</div>${[['tax','Tax registration','Registered name and tax ID'],['bank','Bank ownership letter','Registered name and account ending'],['compliance','Compliance declaration','Registered name and expiry date']].map(([type,label,desc])=>{const d=v.documents?.find(d=>d.type===type);return `<div class="doc-slot" id="evidence-${type}"><div class="doc-slot-head">${icon('file')}<div>${label}<small>${d?esc(d.name)+(d.unsupported?' · Needs manual review':' · Ready to check'):desc}</small></div></div><div class="doc-controls"><label><span class="visually-hidden">Upload ${label}</span><input type="file" data-doc="${type}" accept=".json,.txt,.pdf,.png,.jpg,.jpeg"></label><button type="button" data-template-doc="${type}">Template ↓</button>${d?`<button type="button" data-remove-doc="${type}">Remove</button>`:''}</div></div>`;}).join('')}<button type="button" class="button text small" data-action="templates">${icon('down')}Download document templates</button></div><div class="panel form-panel"><div class="field"><label for="f-notes">Anything else? <span>Optional</span></label><textarea id="f-notes" name="notes" placeholder="A trading name, shared services arrangement, or context for the reviewer…">${esc(v.notes||'')}</textarea></div></div><div class="form-actions"><p class="sub">Checks run locally.<br>No messages are sent automatically.</p><button type="submit" class="button">${icon('shield')}${v.id?'Save & recheck':'Run onboarding checks'}</button></div></form><aside class="panel form-help"><p class="eyebrow">A CLEARER WAY FORWARD</p><h3>What happens next?</h3><ul><li>Check company and tax details.</li><li>Cross-check bank identity.</li><li>Read and compare document fields.</li><li>Return a reasoned decision.</li><li>Prepare a specific follow-up.</li></ul><div class="divider"></div><h3>Start with a real example</h3><p>Load a complete submission, then change any field to see how the decision responds.</p><button class="button secondary small" data-fixture="happy">${icon('plus')}Use a sample vendor</button><div class="divider"></div><h3>Document format</h3><p>Use one document per type. For example, a bank letter:</p><pre class="mono">{\n  "legalName": "Atlas Studio LLC",\n  "accountLast4": "3058"\n}</pre><p>These are consistency checks, not live tax registration, sanctions screening, or bank ownership verification.</p></aside></div>`;}
 function stagesView(v,live=false){return STAGES.map((name,i)=>{const complete=!live||i<running.stage,active=live&&i===running.stage;const cc=v.result?.checks?.filter(c=>c.stage===i)||[];return `<section class="run-stage"><div class="stage-header"><span class="stage-circle ${active?'live':''}">${complete?'✓':active?'':i+1}</span><strong>${name}</strong><small>${complete?(i===4?'Complete':`${cc.length} checks`):active?'Running…':'Waiting'}</small></div>${complete?cc.map(c=>`<div class="check-row ${c.state}"><span class="check-sign">${c.state==='pass'?'✓':c.state==='reject'?'×':'!'}</span><div><strong>${esc(c.label)}</strong><p>${esc(c.reason)}</p>${c.state!=='pass'?`<p class="action">Next step: ${esc(c.action)}</p>`:''}</div></div>`).join(''):''}${i===4&&complete?`<div class="check-row"><span class="check-sign">✓</span><div><strong>Decision recorded · ${esc(v.result.policy||POLICY_VERSION)}</strong><p>${esc(v.result.summary)} A follow-up draft and downloadable audit report are ready.</p></div></div>`:''}</section>`;}).join('');}
-function detail(id){const v=records.find(x=>x.id===id);if(!v)return pageHead('Vendor not found','This reference is not in your local workspace.',button('View all vendors','vendors','back',true));return pageHead(esc(v.legalName),`${esc(v.id)} · ${countryNames[v.country]} · ${v.sample?'Sample submission':'Submitted '+date(v.createdAt)}`,`${button('← Back to Demo','overview','back',true)}${button('Export report','export-report','down',true)}${button('Update & recheck','edit','plus')}`)+`<div class="detail-grid"><aside class="panel detail-summary"><span class="vendor-symbol">${esc(initials(v.legalName))}</span><h2>${esc(v.legalName)}</h2>${status(v.result.status)}<dl class="data-list">${[['Contact',v.contactName||'Not provided'],['Email',v.email],['Tax ID',v.taxId],['Registration country',countryNames[v.country]],['Address',v.address],['Account holder',v.accountName],['Bank',v.bankName],['Account ending','•••• '+v.accountLast4],['Routing code',v.routing],['Category',v.category],['Last checked',time(v.updatedAt)+' IST']].map(([k,x])=>`<dt>${k}</dt><dd>${esc(x)}</dd>`).join('')}</dl>${v.notes?`<dl class="data-list"><dt>Reviewer context</dt><dd>${esc(v.notes)}</dd></dl>`:''}</aside><div><section class="panel decision"><div class="decision-head"><h2>${v.result.status==='approved'?'A clear path forward.':v.result.status==='pending'?'A few details need attention.':'Let’s pause before payment.'}</h2>${status(v.result.status)}</div><p>${esc(v.result.summary)}</p><div class="run-progress">${Array.from({length:v.result.total},(_,i)=>`<i class="${i<v.result.passed?'done':''}"></i>`).join('')}</div><div class="progress-note">${v.result.passed} of ${v.result.total} checks passed · Policy ${esc(v.result.policy||POLICY_VERSION)} · ${v.runs.length} run${v.runs.length>1?'s':''}</div>${v.result.status!=='approved'?`<div style="margin-top:16px;padding:12px 14px;background:#fbfdf9;border:1px solid #dce5d0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><span style="font-size:12px;color:#4f6b48">${icon('mail')} <strong>Vendor Follow-up Draft Prepared:</strong> ${v.result.actions.length} action item${v.result.actions.length===1?'':'s'} communicated.</span><button class="button small secondary" data-detail-tab="followup">${icon('mail')} View & Copy Follow-up Email</button></div>`:''}</section>${v.result.policy!==POLICY_VERSION?'<div class="banner warning">'+icon('shield')+'Policy '+POLICY_VERSION+' adds new checks. Existing results are preserved until you recheck this vendor. <button class="inline-link" data-action="recheck">Recheck now →</button></div>':''}${v.sample?'<div class="banner">'+icon('flask')+'This is sample data. Update and recheck to run the engine on these inputs.</div>':''}<div class="detail-tabs tabs" role="tablist">${[['checks','Checks & reasoning'],['evidence','Evidence'],['followup','Vendor follow-up'],['history','Run history']].map(([k,l])=>`<button role="tab" aria-selected="${detailTab===k}" class="${detailTab===k?'active':''}" data-detail-tab="${k}">${l}</button>`).join('')}</div>${detailTab==='checks'?`<section class="panel form-panel"><h3>Every check, explained</h3>${bankGuardUI(v)}${stagesView(v)}</section>`:detailTab==='evidence'?evidence(v):detailTab==='followup'?`<section class="panel form-panel"><div class="panel-head" style="padding:0 0 20px"><div><h3>A specific, useful follow-up</h3><p>Draft only · review before sharing through a secure channel.</p></div></div><div class="message">${esc(followup(v))}</div><div class="toolbar" style="margin-top:18px">${button('Copy draft','copy-followup','copy',true)}${button('Download draft','download-followup','down',true)}</div></section>`:historyView(v)}</div></div>`;}
+function detail(id){const v=records.find(x=>x.id===id);if(!v)return pageHead('Vendor not found','This reference is not in your local workspace.',button('View all vendors','vendors','back',true));return pageHead(esc(v.legalName),`${esc(v.id)} · ${countryNames[v.country]} · ${v.sample?'Sample submission':'Submitted '+date(v.createdAt)}`,`${button('← Back to Demo','overview','back',true)}${button('📄 View / Print PDF Report','print-current-report','file',true)}${button('Export JSON','export-report','down',true)}${button('Update & recheck','edit','plus')}`)+`<div class="detail-grid"><aside class="panel detail-summary"><span class="vendor-symbol">${esc(initials(v.legalName))}</span><h2>${esc(v.legalName)}</h2>${status(v.result.status)}<dl class="data-list">${[['Contact',v.contactName||'Not provided'],['Email',v.email],['Tax ID',v.taxId],['Registration country',countryNames[v.country]],['Address',v.address],['Account holder',v.accountName],['Bank',v.bankName],['Account ending','•••• '+v.accountLast4],['Routing code',v.routing],['Category',v.category],['Last checked',time(v.updatedAt)+' IST']].map(([k,x])=>`<dt>${k}</dt><dd>${esc(x)}</dd>`).join('')}</dl>${v.notes?`<dl class="data-list"><dt>Reviewer context</dt><dd>${esc(v.notes)}</dd></dl>`:''}</aside><div><section class="panel decision"><div class="decision-head"><h2>${v.result.status==='approved'?'A clear path forward.':v.result.status==='pending'?'A few details need attention.':'Let’s pause before payment.'}</h2>${status(v.result.status)}</div><p>${esc(v.result.summary)}</p><div class="run-progress">${Array.from({length:v.result.total},(_,i)=>`<i class="${i<v.result.passed?'done':''}"></i>`).join('')}</div><div class="progress-note">${v.result.passed} of ${v.result.total} checks passed · Policy ${esc(v.result.policy||POLICY_VERSION)} · ${v.runs.length} run${v.runs.length>1?'s':''}</div>${v.result.status!=='approved'?`<div style="margin-top:16px;padding:12px 14px;background:#fbfdf9;border:1px solid #dce5d0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><span style="font-size:12px;color:#4f6b48">${icon('mail')} <strong>Vendor Follow-up Draft Prepared:</strong> ${v.result.actions.length} action item${v.result.actions.length===1?'':'s'} communicated.</span><button class="button small secondary" data-detail-tab="followup">${icon('mail')} View & Copy Follow-up Email</button></div>`:''}</section>${v.result.policy!==POLICY_VERSION?'<div class="banner warning">'+icon('shield')+'Policy '+POLICY_VERSION+' adds new checks. Existing results are preserved until you recheck this vendor. <button class="inline-link" data-action="recheck">Recheck now →</button></div>':''}${v.sample?'<div class="banner">'+icon('flask')+'This is sample data. Update and recheck to run the engine on these inputs.</div>':''}<div class="detail-tabs tabs" role="tablist">${[['checks','Checks & reasoning'],['evidence','Evidence'],['followup','Vendor follow-up'],['history','Run history']].map(([k,l])=>`<button role="tab" aria-selected="${detailTab===k}" class="${detailTab===k?'active':''}" data-detail-tab="${k}">${l}</button>`).join('')}</div>${detailTab==='checks'?`<section class="panel form-panel"><h3>Every check, explained</h3>${bankGuardUI(v)}${stagesView(v)}</section>`:detailTab==='evidence'?evidence(v):detailTab==='followup'?`<section class="panel form-panel"><div class="panel-head" style="padding:0 0 20px"><div><h3>A specific, useful follow-up</h3><p>Draft only · review before sharing through a secure channel.</p></div></div><div class="message">${esc(followup(v))}</div><div class="toolbar" style="margin-top:18px">${button('Copy draft','copy-followup','copy',true)}${button('Download draft','download-followup','down',true)}</div></section>`:historyView(v)}</div></div>`;}
 function evidence(v){
  const docMeta={
   tax:{label:'Tax Registration Evidence',icon:'file',badge:'Tax Document'},
@@ -57,7 +57,7 @@ function evidence(v){
   return `<section class="panel evidence-card enhanced-evidence-card"><div class="evidence-card-header"><div class="evidence-title-group"><span class="evidence-type-icon">${icon(meta.icon)}</span><div><div style="display:flex;align-items:center;gap:8px"><span class="badge-evidence-type">${meta.badge}</span><span class="evidence-filename">${esc(d.name)}</span></div><h3 style="margin-top:4px">${meta.label}</h3></div></div><span class="status ${d.unsupported?'pending':isMismatch?'rejected':'approved'}">${d.unsupported?'Unreadable':isMismatch?'Discrepancy':'Verified'}</span></div>${d.unsupported?`<div class="evidence-unsupported-note"><p><strong>Unreadable format:</strong> OCR is not connected for this file. Provide structured UTF-8 TXT/JSON or route for specialist review.</p></div>`:`<div class="evidence-comparison-table table-wrap"><table><thead><tr><th>Field Verified</th><th>Extracted from Document</th><th>Submission Form Value</th><th>Cross-Check</th></tr></thead><tbody><tr><td><strong>Legal Entity Name</strong></td><td><code>${esc(d.legalName||'Not found')}</code></td><td>${esc(v.legalName)}</td><td><span class="status ${normalize(d.legalName)===normalize(v.legalName)?'approved':'rejected'}">${normalize(d.legalName)===normalize(v.legalName)?'✓ Match':'Mismatch'}</span></td></tr>${d.type==='tax'?`<tr><td><strong>Tax Registration ID</strong></td><td><code>${esc(d.taxId||'Not found')}</code></td><td>${esc(v.taxId)}</td><td><span class="status ${taxKey(d.taxId,v.country)===taxKey(v.taxId,v.country)?'approved':'rejected'}">${taxKey(d.taxId,v.country)===taxKey(v.taxId,v.country)?'✓ Match':'Mismatch'}</span></td></tr>`:''}${d.type==='bank'?`<tr><td><strong>Account Ending</strong></td><td><code>•••• ${esc(d.accountLast4||'N/A')}</code></td><td>•••• ${esc(v.accountLast4||(v.account?v.account.slice(-4):'N/A'))}</td><td><span class="status ${d.accountLast4===(v.accountLast4||(v.account?v.account.slice(-4):''))?'approved':'rejected'}">${d.accountLast4===(v.accountLast4||(v.account?v.account.slice(-4):''))?'✓ Match':'Mismatch'}</span></td></tr><tr><td><strong>Payment Beneficiary</strong></td><td><code>${esc(d.legalName)}</code></td><td><span style="color:#b06c5c;font-weight:600">${esc(v.accountName||'N/A')}</span></td><td><span class="status ${normalize(d.legalName)===normalize(v.accountName)?'approved':'rejected'}">${normalize(d.legalName)===normalize(v.accountName)?'✓ Match':'× Conflict'}</span></td></tr>`:''}${d.type==='compliance'?`<tr><td><strong>Certificate Expiry</strong></td><td><code>${esc(d.expiresAt||'Not specified')}</code></td><td>Current Date (${todayISO()})</td><td><span class="status ${d.expiresAt&&d.expiresAt>=todayISO()?'approved':'pending'}">${d.expiresAt&&d.expiresAt>=todayISO()?'✓ Active':'Expired'}</span></td></tr>`:''}</tbody></table></div>${d.type==='bank'&&normalize(d.legalName)!==normalize(v.accountName)?`<div class="evidence-alert"><span class="evidence-alert-icon">${icon('shield')}</span><div class="evidence-alert-text"><strong>Payment Risk Alert:</strong> Document confirms ownership by <strong>${esc(d.legalName)}</strong>, but payout was requested to <strong>${esc(v.accountName)}</strong>. This flagged conflict prevents unauthorized account redirection.</div></div>`:''}`}</section>`;
  }).join('')}</div>`;
 }
-function historyView(v){return `<section class="panel form-panel"><h3>A record of every decision</h3>${[...v.runs].reverse().map((r,i)=>{const prev=v.runs[v.runs.length-2-i];const changes=prev?r.checks.filter(c=>prev.checks.find(x=>x.id===c.id)?.state!==c.state):[];return `<div class="activity-event">${icon('clock')}<div><strong>Run ${v.runs.length-i} · ${r.status==='pending'?'Needs review':r.status[0].toUpperCase()+r.status.slice(1)}</strong><p>${r.checks.filter(c=>c.state==='pass').length}/${r.checks.length} checks passed · Policy ${esc(r.policy)}${r.sample?' · Sample result':` · ${r.duration} ms`}</p>${changes.length?`<p>Changed: ${changes.map(c=>esc(c.label)+' → '+(c.state==='pass'?'passed':c.state)).join('; ')}</p>`:''}${r.bankVerification?'<p class="review-note">Trusted-channel confirmation by '+esc(r.bankVerification.reviewer)+': '+esc(r.bankVerification.note)+'</p>':''}<time>${time(r.at)} IST</time><button class="button text small" data-run-report="${v.id}:${v.runs.length-1-i}">Download this run ${icon('down')}</button></div></div>`;}).join('')}</section>`;}
+function historyView(v){return `<section class="panel form-panel"><h3>A record of every decision</h3>${[...v.runs].reverse().map((r,i)=>{const prev=v.runs[v.runs.length-2-i];const changes=prev?r.checks.filter(c=>prev.checks.find(x=>x.id===c.id)?.state!==c.state):[];return `<div class="activity-event">${icon('clock')}<div><strong>Run ${v.runs.length-i} · ${r.status==='pending'?'Needs review':r.status[0].toUpperCase()+r.status.slice(1)}</strong><p>${r.checks.filter(c=>c.state==='pass').length}/${r.checks.length} checks passed · Policy ${esc(r.policy)}${r.sample?' · Sample result':` · ${r.duration} ms`}</p>${changes.length?`<p>Changed: ${changes.map(c=>esc(c.label)+' → '+(c.state==='pass'?'passed':c.state)).join('; ')}</p>`:''}${r.bankVerification?'<p class="review-note">Trusted-channel confirmation by '+esc(r.bankVerification.reviewer)+': '+esc(r.bankVerification.note)+'</p>':''}<time>${time(r.at)} IST</time><div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="button small secondary" data-action="print-run-report" data-run="${v.id}:${v.runs.length-1-i}">${icon('file')} View / Print PDF Report</button><button class="button small text" data-action="download-run-doc" data-run="${v.id}:${v.runs.length-1-i}">${icon('down')} Download Report (.html)</button><button class="button small text" style="color:#94a3b8;font-size:11px" data-run-report="${v.id}:${v.runs.length-1-i}">JSON</button></div></div></div>`;}).join('')}</section>`;}
 function liveView(){const v=running.vendor;return pageHead('A closer look, in real time.',`${esc(v.legalName)} · Checks execute in your browser.`)+`<div class="panel form-panel" style="max-width:820px;margin:auto"><div class="decision-head"><h2>Onboarding in progress</h2><span class="status running">Running</span></div><div class="run-progress">${STAGES.map((_,i)=>`<i class="${i<running.stage?'done':''}"></i>`).join('')}</div>${stagesView(v,true)}</div>`;}
 const scenarios=[
  ['happy','The complete submission','A consistent name, valid payment details, and current evidence. The happy path, from start to finish.','approved','✓','baseline',[]],
@@ -115,10 +115,365 @@ async function runLiveDemo(kind){
  await runSubmission(v);
 }
 function getCurrent(){return records.find(v=>v.id===route().split('/')[1]);}
+function generateAuditReportHtml(v, runIndex){
+ const r = (typeof runIndex === 'number' && v.runs?.[runIndex]) ? v.runs[runIndex] : (v.runs?.[v.runs.length-1] || { at: v.updatedAt, status: v.result.status, checks: v.result.checks, policy: v.result.policy || POLICY_VERSION, duration: 15 });
+ const runNum = typeof runIndex === 'number' ? (runIndex + 1) : (v.runs?.length || 1);
+ const totalRuns = v.runs?.length || 1;
+ const passedCount = r.checks.filter(c => c.state === 'pass').length;
+ const failedChecks = r.checks.filter(c => c.state !== 'pass');
+ const st = r.status;
+ const badgeClass = st === 'approved' ? 'approved' : st === 'pending' ? 'pending' : 'rejected';
+ const badgeLabel = st === 'approved' ? '✓ APPROVED' : st === 'pending' ? '⚠ ACTION NEEDED' : '✕ REJECTED';
+
+ return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vendor Verification Audit Report — ${esc(v.legalName)} (${esc(v.id)})</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f8fafc;
+      color: #0f172a;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .print-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+    .print-bar-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+    .print-bar-title strong { color: #ffffff; }
+    .print-btn {
+      background: #0f766e;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .print-btn:hover { background: #115e59; }
+    .close-btn {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .close-btn:hover { background: #1e293b; color: #fff; }
+    .page-wrap {
+      max-width: 880px;
+      margin: 28px auto 60px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 42px 48px;
+      box-shadow: 0 4px 24px rgba(15,23,42,0.06);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+    }
+    .logo-title h1 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 0 0 4px;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .logo-title p {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0;
+      font-weight: 500;
+    }
+    .meta-box {
+      text-align: right;
+      font-size: 12px;
+      color: #475569;
+    }
+    .meta-box strong {
+      color: #0f172a;
+      font-size: 13px;
+    }
+    .decision-banner {
+      padding: 20px 24px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      border: 1.5px solid;
+    }
+    .decision-banner.rejected {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #991b1b;
+    }
+    .decision-banner.pending {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #92400e;
+    }
+    .decision-banner.approved {
+      background: #ecfdf5;
+      border-color: #86efac;
+      color: #065f46;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .badge.rejected { background: #b91c1c; color: #fff; }
+    .badge.pending { background: #b45309; color: #fff; }
+    .badge.approved { background: #047857; color: #fff; }
+    .decision-banner h2 {
+      font-size: 18px;
+      font-weight: 800;
+      margin: 4px 0 8px;
+    }
+    .decision-banner p {
+      font-size: 13px;
+      margin: 0;
+      line-height: 1.6;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 8px;
+      margin: 26px 0 14px;
+    }
+    .finding-alert {
+      background: #fef2f2;
+      border-left: 4px solid #dc2626;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 12px;
+    }
+    .finding-alert strong { color: #991b1b; font-size: 13.5px; }
+    .finding-alert p { color: #450a0a; margin: 4px 0 0; font-size: 12.5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+    th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 12px;
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      color: #1e293b;
+    }
+    .chip {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .chip.pass { background: #dcfce7; color: #15803d; }
+    .chip.reject { background: #fee2e2; color: #b91c1c; }
+    .chip.pending { background: #fef3c7; color: #b45309; }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px 24px;
+      background: #f8fafc;
+      padding: 18px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      font-size: 12.5px;
+    }
+    .info-row { display: flex; justify-content: space-between; border-bottom: 1px solid #edf2f7; padding: 5px 0; }
+    .info-label { color: #64748b; font-weight: 600; }
+    .info-val { color: #0f172a; font-weight: 700; }
+    .email-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      color: #334155;
+    }
+    .footer {
+      margin-top: 36px;
+      padding-top: 18px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      color: #64748b;
+      font-size: 11px;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .print-bar { display: none !important; }
+      .page-wrap { max-width: 100%; border: none; box-shadow: none; padding: 0; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-bar">
+    <div class="print-bar-title">Vendor Verification Report · <strong>${esc(v.legalName)} (${esc(v.id)})</strong></div>
+    <div style="display:flex;gap:10px">
+      <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <button class="close-btn" onclick="window.close()">Close Window</button>
+    </div>
+  </div>
+
+  <div class="page-wrap">
+    <div class="header">
+      <div class="logo-title">
+        <h1>VENDORLY VERIFICATION AUDIT REPORT</h1>
+        <p>Acme Workspace · Procurement &amp; Operations Compliance Engine</p>
+      </div>
+      <div class="meta-box">
+        <div>Reference: <strong>${esc(v.id)}</strong></div>
+        <div>Evaluation: <strong>Run ${runNum} of ${totalRuns}</strong></div>
+        <div>Date: <strong>${time(r.at)} IST</strong></div>
+        <div>Policy Engine: <strong>${esc(r.policy || POLICY_VERSION)}</strong></div>
+      </div>
+    </div>
+
+    <div class="decision-banner ${badgeClass}">
+      <span class="badge ${badgeClass}">${badgeLabel}</span>
+      <h2>${st==='approved'?'Onboarding Approved — Ready for Payment Setup':st==='pending'?'Onboarding Paused — Review &amp; Additional Information Required':'Onboarding Rejected — Payment Risk / Discrepancy Flagged'}</h2>
+      <p><strong>Evaluation Summary:</strong> ${esc(v.result.summary || 'Policy consistency checks executed.')}</p>
+      <p style="margin-top:8px"><strong>Compliance Score:</strong> ${passedCount} of ${r.checks.length} checks passed · Evaluated in ${r.duration || 12} ms</p>
+    </div>
+
+    ${failedChecks.length ? `
+    <div class="section-title" style="color:#b91c1c">⚠️ Critical Findings Requiring Action</div>
+    ${failedChecks.map(c=>`
+      <div class="finding-alert">
+        <strong>${esc(c.label)} [${c.state.toUpperCase()}]</strong>
+        <p><strong>Finding:</strong> ${esc(c.reason)}</p>
+        <p><strong>Required Next Step:</strong> ${esc(c.action)}</p>
+      </div>
+    `).join('')}
+    ` : ''}
+
+    <div class="section-title">Submitted Profile &amp; Banking Details</div>
+    <div class="info-grid">
+      <div class="info-row"><span class="info-label">Legal Business Name</span><span class="info-val">${esc(v.legalName)}</span></div>
+      <div class="info-row"><span class="info-label">Contact Representative</span><span class="info-val">${esc(v.contactName || 'Not provided')}</span></div>
+      <div class="info-row"><span class="info-label">Contact Email</span><span class="info-val">${esc(v.email)}</span></div>
+      <div class="info-row"><span class="info-label">Registration Jurisdiction</span><span class="info-val">${countryNames[v.country] || v.country}</span></div>
+      <div class="info-row"><span class="info-label">Tax ID Number</span><span class="info-val">${esc(v.taxId)}</span></div>
+      <div class="info-row"><span class="info-label">Service Category</span><span class="info-val">${esc(v.category)}</span></div>
+      <div class="info-row"><span class="info-label">Designated Bank</span><span class="info-val">${esc(v.bankName)}</span></div>
+      <div class="info-row"><span class="info-label">Account Holder / Beneficiary</span><span class="info-val" style="${v.accountName && normalize(v.accountName)!==normalize(v.legalName)?'color:#dc2626':''}">${esc(v.accountName)} ${v.accountName && normalize(v.accountName)!==normalize(v.legalName)?'(MISMATCH)':''}</span></div>
+      <div class="info-row"><span class="info-label">Account Mask</span><span class="info-val">•••• ${esc(v.accountLast4 || 'N/A')}</span></div>
+      <div class="info-row"><span class="info-label">Routing / Sort / IFSC</span><span class="info-val">${esc(v.routing)}</span></div>
+    </div>
+
+    <div class="section-title">Full 12-Point Verification Audit Checklist</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Verification Check</th>
+          <th>Stage</th>
+          <th>Outcome</th>
+          <th>Finding / Reasoning</th>
+          <th>Remediation / Next Step</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${r.checks.map(c=>`
+          <tr>
+            <td><strong>${esc(c.label)}</strong></td>
+            <td>Stage ${c.stage + 1}</td>
+            <td><span class="chip ${c.state}">${c.state==='pass'?'✓ PASS':c.state==='reject'?'✕ FAIL':'! REVIEW'}</span></td>
+            <td>${esc(c.reason)}</td>
+            <td>${c.state!=='pass'?`<span style="color:#b45309;font-weight:600">${esc(c.action)}</span>`:'No action required.'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div class="section-title">Vendor Action &amp; Follow-up Email Draft</div>
+    <div class="email-box">${esc(followup(v))}</div>
+
+    <div class="footer">
+      <div>Vendorly Audit Trail · Bank Fingerprint: <code>${esc(v.bankFingerprint ? v.bankFingerprint.slice(0,16)+'...'+v.bankFingerprint.slice(-8) : 'Protected')}</code></div>
+      <div>Local deterministic compliance check · Generated on ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+function openReport(v, runIndex){
+ if(!v)return;
+ const html=generateAuditReportHtml(v, runIndex);
+ try{
+  const w=typeof window.open==='function'?window.open('','_blank'):null;
+  if(w){
+   w.document.open();
+   w.document.write(html);
+   w.document.close();
+   toast('Audit report opened in a new tab.');
+   return;
+  }
+ }catch(e){console.warn('Popup blocked',e);}
+ download(`${v.id}-run-${(typeof runIndex==='number'?runIndex:(v.runs?.length||1)-1)+1}-audit-report.html`,html,'text/html');
+ toast('Audit report downloaded as a document.');
+}
+function downloadReportDoc(v, runIndex){
+ if(!v)return;
+ const html=generateAuditReportHtml(v, runIndex);
+ download(`${v.id}-run-${(typeof runIndex==='number'?runIndex:(v.runs?.length||1)-1)+1}-audit-report.html`,html,'text/html');
+ toast('Audit report downloaded as a document.');
+}
+
 function report(v){return {vendor:safeVendor(v),generatedAt:new Date().toISOString(),verificationScope:'Local consistency checks only. No live registry, sanctions, bank ownership, or document authenticity verification.',followupDraft:followup(v)};}
 document.addEventListener('click',async e=>{const el=e.target.closest('button,a,tr[data-id]');if(!el)return;const d=el.dataset;if(d.runDemo){await runLiveDemo(d.runDemo);return;}if(d.go){if(running){toast('Wait for the current run to finish.');return;}go(d.go);return;}if(d.detail||d.id){detailTab='checks';go('detail/'+(d.detail||d.id));return;}if(d.tab){tab=d.tab;render();return;}if(d.detailTab){detailTab=d.detailTab;render();return;}if(d.fixture){loadScenario(d.fixture);return;}if(d.templateDoc){captureForm();const base=draft||{};const type=d.templateDoc;const obj={documentType:type,legalName:base.legalName||'Your legal company name'};if(type==='tax')obj.taxId=base.taxId||'84-3276195';if(type==='bank')obj.accountLast4=base.account?base.account.replace(/\D/g,'').slice(-4):base.accountLast4||'3058';if(type==='compliance')obj.expiresAt='2028-12-31';download(type+'-evidence.json',JSON.stringify(obj,null,2));return;}if(d.removeDoc){captureForm();draft.documents=draft.documents.filter(x=>x.type!==d.removeDoc);render();return;}if(d.runReport){const [id,i]=d.runReport.split(':');const v=records.find(x=>x.id===id);download(`${id}-run-${Number(i)+1}.json`,JSON.stringify({vendorId:id,legalName:v.legalName,run:v.runs[Number(i)]},null,2));return;}
  if(d.scenarioFilter){scenarioFilter=d.scenarioFilter;render();return;}
- const a=d.action;if(!a)return;const v=getCurrent();if(a==='run-suite'){runScenarioSuite();return;}if(a==='export-suite'){download('vendorly-scenario-results.json',JSON.stringify(suite,null,2));return;}if(a==='open-bank-review'){bankReviewId=v.id;render();$('#reviewer-name')?.focus();return;}if(a==='cancel-bank-review'){bankReviewId=null;render();return;}if(a==='recheck'){runSubmission(structuredClone(v));return;}if(a==='recheck-vendor'){const target=records.find(x=>x.id===d.vendor);if(target)runSubmission(structuredClone(target));return;}if(a==='new'){draft={documents:[]};go('new');}else if(['overview','vendors','lab','triage'].includes(a))go(a);else if(a==='review'||a==='notifications'){tab='pending';go('vendors');if(route()==='vendors')render();}else if(a==='edit'){draft=structuredClone(v);go('new');}else if(a==='export-report')download(v.id+'-report.json',JSON.stringify(report(v),null,2));else if(a==='backup')download('vendorly-workspace.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),records},null,2));else if(a==='export-csv'){const cell=x=>'"'+String(x??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';download('vendorly-vendors.csv',[['Reference','Legal name','Country','Tax ID','Status','Checks passed','Total checks','Last run','Sample'],...records.map(v=>[v.id,v.legalName,v.country,v.taxId,v.result.status,v.result.passed,v.result.total,v.updatedAt,v.sample?'Yes':'No'])].map(row=>row.map(cell).join(',')).join('\r\n'),'text/csv');}else if(a==='copy-followup'){try{await navigator.clipboard.writeText(followup(v));toast('Follow-up draft copied.');}catch{toast('Clipboard unavailable. Download the draft instead.');}}else if(a==='download-followup')download(v.id+'-followup.txt',followup(v),'text/plain');else if(a==='templates'){const base=draft||fixture();download('document-templates.json',JSON.stringify({instructions:'Save each object below as its own JSON file and upload it to the matching document slot. Replace the example values with document evidence.',tax:{legalName:base.legalName||'Your legal company name',taxId:base.taxId||'84-3276195'},bank:{legalName:base.legalName||'Your legal company name',accountLast4:base.account?base.account.replace(/\D/g,'').slice(-4):base.accountLast4||'3058'},compliance:{legalName:base.legalName||'Your legal company name',expiresAt:'2028-12-31'}},null,2));toast('Template downloaded. Save each document as a separate JSON file.');}else if(a==='import')importJSON();else if(a==='close-modal'){modal=null;render();}else if(a==='remove-samples'){modal={title:'Remove the sample vendors?',text:'This removes sample records and their history. Submissions you have run will remain.',label:'Remove samples',confirm:'confirm-samples'};render();}else if(a==='confirm-samples'){records=records.filter(x=>!x.sample);save();modal=null;render();toast('Sample records removed.');}else if(a==='reset'){modal={title:'Reset this workspace?',text:'All local vendor records and run history will be removed, then sample records will be restored. Export a backup first if you need these records.',label:'Reset workspace',confirm:'confirm-reset'};render();}else if(a==='confirm-reset'){await seed();modal=null;draft=null;go('overview');render();toast('Workspace reset with fresh sample data.');}});
+ const a=d.action;if(!a)return;const v=getCurrent();if(a==='print-run-report'){const [id,i]=d.run.split(':');const target=records.find(x=>x.id===id);openReport(target,Number(i));return;}if(a==='download-run-doc'){const [id,i]=d.run.split(':');const target=records.find(x=>x.id===id);downloadReportDoc(target,Number(i));return;}if(a==='print-current-report'){if(v)openReport(v,v.runs.length-1);return;}if(a==='download-current-doc'){if(v)downloadReportDoc(v,v.runs.length-1);return;}if(a==='run-suite'){runScenarioSuite();return;}if(a==='export-suite'){download('vendorly-scenario-results.json',JSON.stringify(suite,null,2));return;}if(a==='open-bank-review'){bankReviewId=v.id;render();$('#reviewer-name')?.focus();return;}if(a==='cancel-bank-review'){bankReviewId=null;render();return;}if(a==='recheck'){runSubmission(structuredClone(v));return;}if(a==='recheck-vendor'){const target=records.find(x=>x.id===d.vendor);if(target)runSubmission(structuredClone(target));return;}if(a==='new'){draft={documents:[]};go('new');}else if(['overview','vendors','lab','triage'].includes(a))go(a);else if(a==='review'||a==='notifications'){tab='pending';go('vendors');if(route()==='vendors')render();}else if(a==='edit'){draft=structuredClone(v);go('new');}else if(a==='export-report')download(v.id+'-report.json',JSON.stringify(report(v),null,2));else if(a==='backup')download('vendorly-workspace.json',JSON.stringify({version:1,exportedAt:new Date().toISOString(),records},null,2));else if(a==='export-csv'){const cell=x=>'"'+String(x??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';download('vendorly-vendors.csv',[['Reference','Legal name','Country','Tax ID','Status','Checks passed','Total checks','Last run','Sample'],...records.map(v=>[v.id,v.legalName,v.country,v.taxId,v.result.status,v.result.passed,v.result.total,v.updatedAt,v.sample?'Yes':'No'])].map(row=>row.map(cell).join(',')).join('\r\n'),'text/csv');}else if(a==='copy-followup'){try{await navigator.clipboard.writeText(followup(v));toast('Follow-up draft copied.');}catch{toast('Clipboard unavailable. Download the draft instead.');}}else if(a==='download-followup')download(v.id+'-followup.txt',followup(v),'text/plain');else if(a==='templates'){const base=draft||fixture();download('document-templates.json',JSON.stringify({instructions:'Save each object below as its own JSON file and upload it to the matching document slot. Replace the example values with document evidence.',tax:{legalName:base.legalName||'Your legal company name',taxId:base.taxId||'84-3276195'},bank:{legalName:base.legalName||'Your legal company name',accountLast4:base.account?base.account.replace(/\D/g,'').slice(-4):base.accountLast4||'3058'},compliance:{legalName:base.legalName||'Your legal company name',expiresAt:'2028-12-31'}},null,2));toast('Template downloaded. Save each document as a separate JSON file.');}else if(a==='import')importJSON();else if(a==='close-modal'){modal=null;render();}else if(a==='remove-samples'){modal={title:'Remove the sample vendors?',text:'This removes sample records and their history. Submissions you have run will remain.',label:'Remove samples',confirm:'confirm-samples'};render();}else if(a==='confirm-samples'){records=records.filter(x=>!x.sample);save();modal=null;render();toast('Sample records removed.');}else if(a==='reset'){modal={title:'Reset this workspace?',text:'All local vendor records and run history will be removed, then sample records will be restored. Export a backup first if you need these records.',label:'Reset workspace',confirm:'confirm-reset'};render();}else if(a==='confirm-reset'){await seed();modal=null;draft=null;go('overview');render();toast('Workspace reset with fresh sample data.');}});
 function importJSON(){const input=document.createElement('input');input.type='file';input.accept='.json';input.onchange=async()=>{const file=input.files[0];if(!file)return;if(file.size>5*1024*1024){toast('Choose a JSON file smaller than 5 MB.');return;}try{const data=JSON.parse(await file.text());if(data.records&&data.version===1){if(!Array.isArray(data.records)||data.records.some(v=>!v.id||!v.legalName||!v.result?.checks||!v.runs||!v.country||!v.updatedAt))throw new Error();let added=0;for(const raw of data.records){const v=safeVendor(raw);if(!records.some(r=>r.id===v.id)){records.push(v);added++;}}save();render();toast(`${added} records restored; existing references were preserved.`);}else{const x=data.vendor||data;if(!x||typeof x.legalName!=='string'||typeof x.email!=='string')throw new Error();const allowed=['legalName','contactName','email','country','category','address','taxId','bankName','accountName','routing','account','notes'];draft=Object.fromEntries(allowed.filter(k=>typeof x[k]==='string').map(k=>[k,x[k]]));draft.documents=Array.isArray(x.documents)?x.documents.filter(d=>['bank','tax','compliance'].includes(d.type)).map(d=>({type:d.type,name:String(d.name||d.type+'.json'),legalName:String(d.legalName||''),taxId:String(d.taxId||''),accountLast4:String(d.accountLast4||''),expiresAt:String(d.expiresAt||''),documentType:String(d.documentType||''),unsupported:!!d.unsupported})):[];go('new');toast('Submission imported. Review the inputs before running checks.');}}catch{toast('Invalid JSON. Import a vendor with legalName and email, or a Vendorly backup.');}};input.click();}
 document.addEventListener('input',e=>{if(e.target.id==='vendor-search'){query=e.target.value;const pos=e.target.selectionStart;render();const input=$('#vendor-search');input.focus();try{input.setSelectionRange(pos,pos);}catch{}}});
 document.addEventListener('change',async e=>{if(e.target.id==='queue-sort'){queueSort=e.target.value;render();}if(e.target.id==='country-filter'){country=e.target.value;render();}if(e.target.dataset.doc&&e.target.files?.[0])await loadFile(e.target.files[0],e.target.dataset.doc);});
