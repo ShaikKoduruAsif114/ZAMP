@@ -110,7 +110,15 @@ async function runSubmission(v){
 }
 async function runLiveDemo(kind){
  await loadScenario(kind);
+ if(!draft) return;
  const v=structuredClone(draft);
+ const existingDemos = records.filter(r => normalize(r.legalName) === normalize(v.legalName));
+ if (existingDemos.length > 0) {
+  const primary = existingDemos[0];
+  v.id = primary.id;
+  records = records.filter(r => r.id === primary.id || normalize(r.legalName) !== normalize(v.legalName));
+  save();
+ }
  if(!v.bankFingerprint&&!v.account){v.account=v.country==='GB'?'42618059':v.country==='IN'?'104261738059':'7264193058';}
  await runSubmission(v);
 }
@@ -480,7 +488,7 @@ document.addEventListener('change',async e=>{if(e.target.id==='queue-sort'){queu
 document.addEventListener('submit',e=>{if(e.target.id==='bank-review-form'){e.preventDefault();confirmBankChange(e.target);return;}if(e.target.id==='submission-form'){e.preventDefault();captureForm();const v=structuredClone(draft);if(!v.bankFingerprint&&!v.account){toast('Enter the bank account number.');return;}runSubmission(v);}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal){modal=null;render();}if(e.key==='Tab'&&modal){const buttons=[...document.querySelectorAll('.modal button')];if(e.shiftKey&&document.activeElement===buttons[0]){e.preventDefault();buttons.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===buttons.at(-1)){e.preventDefault();buttons[0].focus();}}});
 window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0);});
-try{const stored=localStorage.getItem(KEY);if(stored){const data=JSON.parse(stored);if(!Array.isArray(data))throw new Error();records=data;}else await seed();}catch{persistent=false;records=[];}
+try{const stored=localStorage.getItem(KEY);if(stored){const data=JSON.parse(stored);if(!Array.isArray(data))throw new Error();const seen=new Set();records=data.filter(r=>{const key=normalize(r.legalName)+'::'+String(r.taxId||'').trim().toUpperCase();if(seen.has(key))return false;seen.add(key);return true;});if(records.length!==data.length)save();}else await seed();}catch{persistent=false;records=[];}
 render();
 
 function triageItems(){
@@ -517,6 +525,10 @@ function confirmBankChange(form){
 }
 async function loadScenario(kind){
  draft=fixture(kind);
+ if(kind==='happy'){
+  const base=records.find(v=>normalize(v.legalName)===normalize(draft.legalName));
+  if(base) draft.id=base.id;
+ }
  if(kind==='bankchange'){
   const base=records.find(v=>v.result.status==='approved'&&v.legalName==='Lumen Creative LLC')||records.find(v=>v.result.status==='approved');
   if(!base){draft=null;toast('Approve a vendor first, or use Run all for an isolated bank-change test.');return;}

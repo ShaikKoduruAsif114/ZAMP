@@ -22,3 +22,29 @@ test('An approved bank change stays held on rerun; independent confirmation reco
 test('Vendor follow-up draft is accessible with action items and contact details',async()=>{const {dom,w,doc}=await boot();click(doc,'[data-detail="VND-1005"]');await waitFor(()=>doc.querySelector('.detail-tabs'));click(doc,'[data-detail-tab="followup"]');await waitFor(()=>doc.querySelector('.message'));assert.match(doc.querySelector('.message').textContent,/Cobalt Freight/);assert.match(doc.querySelector('.message').textContent,/bank/i);dom.window.close();});
 test('Action center displays expiry warnings and sorts blocking findings first',async()=>{const {dom,w,doc}=await boot();w.location.hash='#triage';await waitFor(()=>doc.querySelector('.triage-item'));assert.match(doc.querySelector('.triage-item').textContent,/Cobalt Freight/);assert.match(doc.querySelector('.content').textContent,/Expires in 14 days/);const row=[...doc.querySelectorAll('.triage-item')].find(x=>x.textContent.includes('Evergreen Systems'));assert.match(row.textContent,/Last result: approved/);dom.window.close();});
 test('Old decisions are preserved and explicitly rechecked under the updated policy',async()=>{const first=await boot();const old=JSON.parse(first.w.localStorage.getItem('vendorly-records-v1'));old.forEach(v=>{v.result.policy='V1.0';v.runs.forEach(r=>r.policy='V1.0');delete v.accountFormatValid;delete v.approvedBankFingerprint;});first.dom.window.close();const {dom,w,doc}=await boot(old);click(doc,'[data-detail="VND-1008"]');await waitFor(()=>doc.querySelector('[data-action="recheck"]'));assert.match(doc.querySelector('.banner.warning').textContent,/Existing results are preserved/);click(doc,'[data-action="recheck"]');await waitFor(()=>doc.querySelector('.detail-tabs'));const record=JSON.parse(w.localStorage.getItem('vendorly-records-v1')).find(v=>v.id==='VND-1008');assert.equal(record.result.status,'approved');assert.equal(record.result.policy,'V1.1');assert.equal(record.runs[0].policy,'V1.0');assert.equal(record.runs.length,2);dom.window.close();});
+
+test('Live demo happy path rerun maintains approval without duplicate company warning',async()=>{
+  const {dom,w,doc}=await boot();
+  click(doc,'[data-run-demo="happy"]');
+  await waitFor(()=>doc.querySelector('.detail-tabs'));
+  assert.match(doc.querySelector('.decision-head').textContent,/Approved/i);
+  let records=JSON.parse(w.localStorage.getItem('vendorly-records-v1'));
+  let v=records.find(v=>v.legalName==='Atlas Studio LLC');
+  assert.ok(v);
+  assert.equal(v.result.status,'approved');
+  assert.equal(v.runs.length,1);
+
+  w.location.hash='#overview';
+  await waitFor(()=>doc.querySelector('[data-run-demo="happy"]'));
+  click(doc,'[data-run-demo="happy"]');
+  await waitFor(()=>doc.querySelector('.detail-tabs'));
+  assert.match(doc.querySelector('.decision-head').textContent,/Approved/i);
+  records=JSON.parse(w.localStorage.getItem('vendorly-records-v1'));
+  const allAtlas=records.filter(v=>v.legalName==='Atlas Studio LLC');
+  assert.equal(allAtlas.length,1);
+  assert.equal(allAtlas[0].result.status,'approved');
+  assert.equal(allAtlas[0].runs.length,2);
+  const duplicateCheck=allAtlas[0].result.checks.find(c=>c.id==='entity');
+  assert.equal(duplicateCheck.state,'pass');
+  dom.window.close();
+});
